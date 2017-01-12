@@ -261,6 +261,51 @@ func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, 
 	return watchCh, nil
 }
 
+func (s *Etcd) WatchChild(key string, stopCh <-chan struct{}, opts *store.WatchOptions) (<-chan []*store.KVPair, error) {
+	watchOpts := &etcd.WatcherOptions{Recursive: opts.Recursive}
+	watcher := s.client.Watcher(s.normalize(key), watchOpts)
+
+	// watchCh is sending back events to the caller
+	watchCh := make(chan []*store.KVPair)
+
+	go func() {
+		defer close(watchCh)
+
+		for {
+			// Check if the watch was stopped by the caller
+			select {
+			case <-stopCh:
+				return
+			default:
+			}
+
+			result, err := watcher.Next(context.Background())
+
+			if err != nil {
+				return
+			}
+
+			if opts.Recursive && opts.ReturnAll {
+				list, err := s.List(key)
+				if err != nil {
+					return
+				}
+				watchCh <- list
+			} else {
+				kvpair := &store.KVPair{
+					Key:       result.Node.Key,
+					Value:     []byte(result.Node.Value),
+					LastIndex: result.Node.ModifiedIndex,
+				}
+				watchCh <- []*store.KVPair{kvpair}
+			}
+		}
+	}()
+
+	return watchCh, nil
+
+}
+
 // WatchTree watches for changes on a "directory"
 // It returns a channel that will receive changes or pass
 // on errors. Upon creating a watch, the current childs values

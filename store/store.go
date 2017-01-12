@@ -78,6 +78,9 @@ type Store interface {
 	// Watch for changes on a key
 	Watch(key string, stopCh <-chan struct{}) (<-chan *KVPair, error)
 
+	// Watch for changes on a key
+	WatchChild(key string, stopCh <-chan struct{}, opts *WatchOptions) (<-chan []*KVPair, error)
+
 	// WatchTree watches for changes on child nodes under
 	// a given directory
 	WatchTree(directory string, stopCh <-chan struct{}) (<-chan []*KVPair, error)
@@ -115,6 +118,18 @@ type KVPair struct {
 type WriteOptions struct {
 	IsDir bool
 	TTL   time.Duration
+}
+
+// WatchOptions contains optional watch parameters
+type WatchOptions struct {
+	// if true, watch for change in all child nodes
+	// if false, only watch for current key
+	Recursive bool
+
+	// only make sense when Recursive=true
+	// when true, is the previous watchTree behavior, return all child nodes
+	// else, only return the changed child
+	ReturnAll bool
 }
 
 // LockOptions contains optional request parameters
